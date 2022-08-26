@@ -4,6 +4,7 @@ import AbstractPlutoDingetjes
 using HypertextLiteral
 import ColorTypes: RGB, N0f8, Colorant
 import Logging
+using Dates
 
 # has to be outside of the begin block for julia 1.0 compat
 struct Uhm end
@@ -69,6 +70,7 @@ struct Uhm end
 end
 
 default(x) = AbstractPlutoDingetjes.Bonds.initial_value(x)
+transform(el, x) = AbstractPlutoDingetjes.Bonds.transform_value(el, x)
 
 @testset "Public API" begin
     el = Button()
@@ -113,8 +115,22 @@ default(x) = AbstractPlutoDingetjes.Bonds.initial_value(x)
 
     el = DateField()
     @test default(el) === nothing
+    el = DatePicker()
+    @test default(el) === nothing
+    el = DatePicker(Dates.Date(2022, 4, 20))
+    @test default(el) == Dates.Date(2022, 4, 20)
+    el = DatePicker(default=Dates.Date(2022, 4))
+    @test default(el) == Dates.Date(2022, 4, 1)
+    el = DatePicker(default=Dates.DateTime(2022, 12, 31, 23, 59, 59))
+    @test default(el) == Dates.Date(2022, 12, 31)
     el = TimeField()
     @test default(el) === "" # ugh 
+    el = TimePicker()
+    @test default(el) === nothing
+    el = TimePicker(Dates.Time(23,59,44))
+    @test default(el) == Dates.Time(23,59,00)
+    el = TimePicker(default=Dates.Time(23,59,44), show_seconds=true)
+    @test default(el) === Dates.Time(23,59,44)
 
     el = FilePicker()
     @test default(el) === nothing
@@ -191,7 +207,6 @@ default(x) = AbstractPlutoDingetjes.Bonds.initial_value(x)
     @test default(el) == tan
 
 
-
     el = Scrubbable(60)
     @test default(el) === 60
     el = Scrubbable(60.0)
@@ -207,7 +222,20 @@ default(x) = AbstractPlutoDingetjes.Bonds.initial_value(x)
     @test default(el) isa Rational
 
 
-
+    @testset "Rounding default value: $f" for f in [Slider, NumberField]
+        el = f(1:10; default = 5.2)
+        @test default(el) == 5
+        @test transform(el, 1) === 1
+        el = f(1:.5:10; default = 5.4)
+        @test default(el) == 5.5
+        @test transform(el, 1) === 1.0
+        if f !== NumberField
+            el = f([60,10,-80]; default = 5.4)
+            @test default(el) == 10
+            el = Slider([sin, cos]; default = tan)
+            @test default(el) == sin # default is not in the list
+        end
+    end
 
 
 
@@ -320,5 +348,17 @@ default(x) = AbstractPlutoDingetjes.Bonds.initial_value(x)
     @test_logs min_level=Logging.Info transformed_value(log, html"<input type=range>")
     
     @test default(el) == 5
+    
+    import PlutoUI.Experimental: wrapped
+    
+    el = wrapped() do Child
+        @htl("""
+        Hello!
+        $(Child(Slider([sin, cos])))
+        """)
+    end
+    
+    @test default(el) == sin
+    
 end
 
